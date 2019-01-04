@@ -51,6 +51,22 @@ struct Tile {
           out[i] = in[(i + 2) % 4];
         }
         break;
+      case '?': // type 1 conditional
+        if (in[dir] == 0) {
+          out[(dir + 1) % 4] = out[(dir - 1) % 4] = 0;
+        } else {
+          out[(dir + 1) % 4] = in[(dir + 1) % 4];
+          out[(dir - 1) % 4] = in[(dir - 1) % 4];
+        }
+        break;
+      case ':': // type 2 conditional
+        if (in[dir] != 0) {
+          out[(dir + 1) % 4] = out[(dir - 1) % 4] = 0;
+        } else {
+          out[(dir + 1) % 4] = in[(dir + 1) % 4];
+          out[(dir - 1) % 4] = in[(dir - 1) % 4];
+        }
+        break;
       default: // empty
         out = in;
         break;
@@ -113,19 +129,17 @@ struct Board {
   }
 
   void
-  update(std::queue<uint> changed) {
-    while (changed.size() > 0) {
-      Tile& t = v[changed.front()];
-      t.update();
-      auto n = neighbours(changed.front());
-      for (uint i = 0; i < 4; ++i) {
-        if (n[i] != MAX && v[n[i]].in[i] != t.out[i]) {
-          changed.push(n[i]);
-          v[n[i]].in[i] = t.out[i];
-        }
+  update(std::queue<uint>& changed) {
+    Tile& t = v[changed.front()];
+    t.update();
+    auto n = neighbours(changed.front());
+    for (uint i = 0; i < 4; ++i) {
+      if (n[i] != MAX && v[n[i]].in[i] != t.out[i]) {
+        changed.push(n[i]);
+        v[n[i]].in[i] = t.out[i];
       }
-      changed.pop();
     }
+    changed.pop();
   }
 
   void
@@ -169,7 +183,9 @@ main() {
     }
   }
 
-  board.update(changed);
+  while (changed.size() > 0) {
+    board.update(changed);
+  }
   board.draw();
 
   return 0;
