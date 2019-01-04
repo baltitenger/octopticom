@@ -7,6 +7,9 @@
 #include <climits>
 #include <chrono>
 #include <thread>
+#include <getopt.h>
+#include <fstream>
+#include <cstdio>
 
 using uint = unsigned int;
 using uchar = unsigned char;
@@ -149,41 +152,70 @@ struct Board {
     if (clear) {
       std::cout << "\r\e[A";
       for (uint i = 0; i < h; ++i) {
-        std::cout << "\e[A";
-        std::cout << "\e[A";
+        std::cout << "\e[A\e[A";
       }
     }
+    const char fmtH[] = "  \033[1;3%um|\033[0m ";
+    const char fmtV[] = "\033[1;3%um—\033[0m";
     for (uint i = 0; i < w; ++i) {
-      std::cout << "  \033[1;" << (v[i].out[0] + 30) << "m|\033[0m ";
+      std::printf(fmtH, v[i].out[0]);
     }
     std::cout << '\n';
     for (uint y = 0; y < h; ++y) {
-      std::cout << "\033[1;" << (v[y * w].out[3] + 30) << "m-\033[0m";
+      std::printf(fmtV, v[y * w].out[3]);
       for (uint i = y * w; i < (y + 1) * w; ++i) {
         std::cout << v[i].type << (uint)v[i].dir << (uint)v[i].color;
         if (i % w != w - 1) {
-          std::cout << "\033[1;" << ((v[i].out[1] | v[i + 1].out[3]) + 30) << "m-\033[0m";
+          std::printf(fmtV, v[i].out[1] | v[i + 1].out[3]);
         }
       }
-      std::cout << "\033[1;" << (v[(y + 1) * w - 1].out[1] + 30) << "m-\033[0m\n";
-      if (y == h - 1) {
-        break;
-      }
-      for (uint i = y * w; i < (y + 1) * w; ++i) {
-        std::cout << "  \033[1;" << ((v[i].out[2] | v[i + w].out[0]) + 30) << "m|\033[0m ";
-      }
+      std::printf(fmtV, v[(y + 1) * w - 1].out[1]);
       std::cout << '\n';
+      if (y != h - 1) {
+        for (uint i = y * w; i < (y + 1) * w; ++i) {
+          std::printf(fmtH, v[i].out[2] | v[i + w].out[0]);
+        }
+        std::cout << '\n';
+      }
     }
     for (uint i = (h - 1) * w; i <  h * w; ++i) {
-      std::cout << "  \033[1;" << (v[i].out[2] + 30) << "m|\033[0m ";
+      std::printf(fmtH, v[i].out[2]);
     }
     std::cout << std::endl;
   }
 };
 
 int
-main() {
-  Board board(std::cin);
+main(int argc, char* argv[]) {
+  int opt;
+  std::ifstream boardFile;
+  std::vector<std::ifstream> inFiles;
+
+  bool optErrors = false, useFile = false, animate = false;
+
+  while ((opt = getopt(argc, argv, "ab:i:")) != -1) {
+    switch (opt) {
+      case 'b':
+        boardFile = std::ifstream(optarg);
+        useFile = true;
+        break;
+      case 'i':
+        inFiles.push_back(std::ifstream(optarg));
+        break;
+      case 'a':
+        animate = true;
+        break;
+      default:
+        optErrors = true;
+        break;
+    }
+  }
+  
+  if (optErrors) {
+    return 1;
+  }
+  
+  Board board(useFile ? boardFile : std::cin);
 
   std::queue<uint> changed;
   for (uint i = 0; i < board.size(); ++i) {
@@ -192,12 +224,16 @@ main() {
     }
   }
 
-  board.draw();
+  bool drawnOne = false;
   while (changed.size() > 0) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (animate) {
+      board.draw(drawnOne);
+      drawnOne = true;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     board.update(changed);
-    board.draw(true);
   }
+  board.draw(drawnOne);
 
   return 0;
 }
