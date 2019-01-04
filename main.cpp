@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <queue>
 #include <climits>
+#include <chrono>
+#include <thread>
 
 using uint = unsigned int;
 using uchar = unsigned char;
@@ -143,7 +145,14 @@ struct Board {
   }
 
   void
-  draw() {
+  draw(bool clear = false) {
+    if (clear) {
+      std::cout << "\r\e[A";
+      for (uint i = 0; i < h; ++i) {
+        std::cout << "\e[A";
+        std::cout << "\e[A";
+      }
+    }
     for (uint i = 0; i < w; ++i) {
       std::cout << "  \033[1;" << (v[i].out[0] + 30) << "m|\033[0m ";
     }
@@ -168,7 +177,7 @@ struct Board {
     for (uint i = (h - 1) * w; i <  h * w; ++i) {
       std::cout << "  \033[1;" << (v[i].out[2] + 30) << "m|\033[0m ";
     }
-    std::cout << '\n';
+    std::cout << std::endl;
   }
 };
 
@@ -183,10 +192,12 @@ main() {
     }
   }
 
-  while (changed.size() > 0) {
-    board.update(changed);
-  }
   board.draw();
+  while (changed.size() > 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    board.update(changed);
+    board.draw(true);
+  }
 
   return 0;
 }
