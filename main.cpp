@@ -253,16 +253,16 @@ main(int argc, char* argv[]) {
 
   std::vector<uchar> inputs(inFiles.size()), outputs(outFiles.size());
   for (uint cycle = 0; cycle < cycles; ++cycle) {
-    std::queue<uint> changed = starters;
-    for (uint i = 0; i < numStarters; ++i) {
-      board.update(changed, inputs, outputs, true);
-    }
-    
     for (uint i = 0; i < inFiles.size(); ++i) {
       inFiles[i] >> inputs[i];
       inputs[i] -= '0';
     }
 
+    std::queue<uint> changed = starters;
+    for (uint i = 0; i < numStarters; ++i) {
+      board.update(changed, inputs, outputs, true);
+    }
+    
     bool drawnOne = false;
     while (changed.size() > 0) {
       if (animate) {
@@ -276,6 +276,7 @@ main(int argc, char* argv[]) {
 
     for (uint i = 0; i < outFiles.size(); ++i) {
       outFiles[i] << + outputs[i] << ' ';
+      outputs[i] = 0;
     }
   }
 
