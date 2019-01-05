@@ -86,6 +86,7 @@ struct Tile {
         }
         break;
       case 'o': // output
+        outputs[dir] = 0;
         for (uchar i = 0; i < 4; ++i) {
           outputs[dir] |= in[i];
         }
@@ -209,11 +210,11 @@ main(int argc, char* argv[]) {
   std::ifstream boardFile;
   std::vector<std::ifstream> inFiles;
   std::vector<std::ofstream> outFiles;
-  uint cycles = 1;
+  uint cycles = 1, delay = 300;
 
-  bool optErrors = false, useFile = false, animate = false;
+  bool optErrors = false, useFile = false, animate = false, quiet = false;
 
-  while ((opt = getopt(argc, argv, "ab:i:o:c:")) != -1) {
+  while ((opt = getopt(argc, argv, "b:i:o:c:ad:q")) != -1) {
     switch (opt) {
       case 'b':
         boardFile = std::ifstream(optarg);
@@ -230,6 +231,12 @@ main(int argc, char* argv[]) {
         break;
       case 'a':
         animate = true;
+        break;
+      case 'd':
+        delay = atoi(optarg);
+        break;
+      case 'q':
+        quiet = true;
         break;
       default:
         optErrors = true;
@@ -265,19 +272,23 @@ main(int argc, char* argv[]) {
     
     bool drawnOne = false;
     while (changed.size() > 0) {
-      if (animate) {
+      if (animate && !quiet) {
         board.draw(drawnOne);
         drawnOne = true;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
       board.update(changed, inputs, outputs);
     }
-    board.draw(drawnOne);
+    if (!quiet) {
+      board.draw(drawnOne);
+    }
 
     for (uint i = 0; i < outFiles.size(); ++i) {
-      outFiles[i] << + outputs[i] << ' ';
-      outputs[i] = 0;
+      outFiles[i] << + outputs[i];
     }
+  }
+  for (uint i = 0; i < outFiles.size(); ++i) {
+    outFiles[i] << '\n';
   }
 
   return 0;
