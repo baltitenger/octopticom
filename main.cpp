@@ -12,6 +12,7 @@
 #include <cstdio>
 
 using uint = unsigned int;
+using ushort = unsigned short;
 using uchar = unsigned char;
 
 const uint MAX = UINT_MAX;
@@ -27,11 +28,20 @@ struct Tile {
   }
 
   void
-  update() {
+  update(std::vector<uchar>& inputs, std::vector<uchar>& outputs, bool cycleStart = false) {
     switch (type) {
+      // starter blocks
       case 's': // source (Note: in the original game there should be only one white soure.)
         out[dir] = color;
         break;
+      case 'b': // buffer
+        if(cycleStart) {
+          out[dir] = color;
+        } else {
+          color = in[dir];
+        }
+        break;
+      // normal blocks:
       case 'f': // filter (& block)
         for (uchar i = 0; i < 4; ++i) {
           out[i] = in[i] & color;
@@ -48,8 +58,6 @@ struct Tile {
           out[i]           =  in[i]          | (in[(i + 1) % 4] & color);
           out[(i + 1) % 4] = (in[i] & color) |  in[(i + 1) % 4];
         }
-        break;
-      case 'b': // buffer
         break;
       case 't': //tunnel
         for (uchar i = dir % 2; i < 4; i += 2) {
@@ -72,6 +80,16 @@ struct Tile {
           out[(dir - 1) % 4] = in[(dir - 1) % 4];
         }
         break;
+      case 'i': // input
+        for (uchar i = 0; i < 4; ++i) {
+          out[i] = in[i] & inputs[dir];
+        }
+        break;
+      case 'o': // output
+        for (uchar i = 0; i < 4; ++i) {
+          outputs[dir] |= in[i];
+        }
+        break;
       default: // empty
         out = in;
         break;
@@ -79,7 +97,7 @@ struct Tile {
   }
 };
 
-const std::vector<uchar> starters {'s', 'b'};
+const std::vector<uchar> starters {'s', 'b', 'i'};
 
 bool
 isStarter(uchar type) {
@@ -134,9 +152,9 @@ struct Board {
   }
 
   void
-  update(std::queue<uint>& changed) {
+  update(std::queue<uint>& changed, std::vector<uchar>& inputs, std::vector<uchar>& outputs, bool cycleStart = false) {
     Tile& t = v[changed.front()];
-    t.update();
+    t.update(inputs, outputs, cycleStart);
     auto n = neighbours(changed.front());
     for (uint i = 0; i < 4; ++i) {
       if (n[i] != MAX && v[n[i]].in[i] != t.out[i]) {
@@ -190,10 +208,12 @@ main(int argc, char* argv[]) {
   int opt;
   std::ifstream boardFile;
   std::vector<std::ifstream> inFiles;
+  std::vector<std::ofstream> outFiles;
+  uint cycles = 1;
 
   bool optErrors = false, useFile = false, animate = false;
 
-  while ((opt = getopt(argc, argv, "ab:i:")) != -1) {
+  while ((opt = getopt(argc, argv, "ab:i:o:c:")) != -1) {
     switch (opt) {
       case 'b':
         boardFile = std::ifstream(optarg);
@@ -201,6 +221,12 @@ main(int argc, char* argv[]) {
         break;
       case 'i':
         inFiles.push_back(std::ifstream(optarg));
+        break;
+      case 'o':
+        outFiles.push_back(std::ofstream(optarg, std::ios::trunc));
+        break;
+      case 'c':
+        cycles = atoi(optarg);
         break;
       case 'a':
         animate = true;
@@ -217,23 +243,41 @@ main(int argc, char* argv[]) {
   
   Board board(useFile ? boardFile : std::cin);
 
-  std::queue<uint> changed;
+  std::queue<uint> starters;
   for (uint i = 0; i < board.size(); ++i) {
     if (isStarter(board[i].type)) {
-      changed.push(i);
+      starters.push(i);
     }
   }
+  uint numStarters = starters.size();
 
-  bool drawnOne = false;
-  while (changed.size() > 0) {
-    if (animate) {
-      board.draw(drawnOne);
-      drawnOne = true;
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::vector<uchar> inputs(inFiles.size()), outputs(outFiles.size());
+  for (uint cycle = 0; cycle < cycles; ++cycle) {
+    std::queue<uint> changed = starters;
+    for (uint i = 0; i < numStarters; ++i) {
+      board.update(changed, inputs, outputs, true);
     }
-    board.update(changed);
+    
+    for (uint i = 0; i < inFiles.size(); ++i) {
+      inFiles[i] >> inputs[i];
+      inputs[i] -= '0';
+    }
+
+    bool drawnOne = false;
+    while (changed.size() > 0) {
+      if (animate) {
+        board.draw(drawnOne);
+        drawnOne = true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      }
+      board.update(changed, inputs, outputs);
+    }
+    board.draw(drawnOne);
+
+    for (uint i = 0; i < outFiles.size(); ++i) {
+      outFiles[i] << + outputs[i] << ' ';
+    }
   }
-  board.draw(drawnOne);
 
   return 0;
 }
