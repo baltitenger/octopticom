@@ -154,16 +154,19 @@ struct Board {
 
   void
   update(std::queue<uint>& changed, std::vector<uchar>& inputs, std::vector<uchar>& outputs, bool cycleStart = false) {
-    Tile& t = v[changed.front()];
-    t.update(inputs, outputs, cycleStart);
-    auto n = neighbours(changed.front());
-    for (uint i = 0; i < 4; ++i) {
-      if (n[i] != MAX && v[n[i]].in[i] != t.out[i]) {
-        changed.push(n[i]);
-        v[n[i]].in[i] = t.out[i];
+    uint n = changed.size();
+    for (uint i = 0; i < n; ++i) {
+      Tile& t = v[changed.front()];
+      t.update(inputs, outputs, cycleStart);
+      auto n = neighbours(changed.front());
+      for (uint j = 0; j < 4; ++j) {
+        if (n[j] != MAX && v[n[j]].in[j] != t.out[j]) {
+          changed.push(n[j]);
+          v[n[j]].in[j] = t.out[j];
+        }
       }
+      changed.pop();
     }
-    changed.pop();
   }
 
   void
@@ -210,7 +213,7 @@ main(int argc, char* argv[]) {
   std::ifstream boardFile;
   std::vector<std::ifstream> inFiles;
   std::vector<std::ofstream> outFiles;
-  uint cycles = 1, delay = 300;
+  uint cycles = 1, delay = 100;
 
   bool optErrors = false, useFile = false, animate = false, quiet = false;
 
@@ -256,7 +259,6 @@ main(int argc, char* argv[]) {
       starters.push(i);
     }
   }
-  uint numStarters = starters.size();
 
   std::vector<uchar> inputs(inFiles.size()), outputs(outFiles.size());
   for (uint cycle = 0; cycle < cycles; ++cycle) {
@@ -266,9 +268,7 @@ main(int argc, char* argv[]) {
     }
 
     std::queue<uint> changed = starters;
-    for (uint i = 0; i < numStarters; ++i) {
-      board.update(changed, inputs, outputs, true);
-    }
+    board.update(changed, inputs, outputs, true);
     
     bool drawnOne = false;
     while (changed.size() > 0) {
