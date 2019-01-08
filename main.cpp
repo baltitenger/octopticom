@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <queue>
+#include <deque>
 #include <climits>
 #include <chrono>
 #include <thread>
@@ -153,19 +153,26 @@ struct Board {
   }
 
   void
-  update(std::queue<uint>& changed, std::vector<uchar>& inputs, std::vector<uchar>& outputs, bool cycleStart = false) {
-    uint n = changed.size();
-    for (uint i = 0; i < n; ++i) {
-      Tile& t = v[changed.front()];
+  update(std::deque<uint>& cIds, std::deque<Tile>& cTiles, std::vector<uchar>& inputs, std::vector<uchar>& outputs, bool cycleStart = false) {
+    uint x = cIds.size();
+    for (uint i = 0; i < x; ++i) {
+      Tile& t = cTiles.front();
       t.update(inputs, outputs, cycleStart);
-      auto n = neighbours(changed.front());
+      std::vector<uint> n = neighbours(cIds.front());
       for (uint j = 0; j < 4; ++j) {
-        if (n[j] != MAX && v[n[j]].in[j] != t.out[j]) {
-          changed.push(n[j]);
-          v[n[j]].in[j] = t.out[j];
+        if (n[j] != MAX && t.out[j] != v[cIds.front()].out[j]) {
+          auto newBegin = cIds.begin() + (x - i);
+          auto k = std::find(newBegin, cIds.end(), n[j]);
+          if (k == cIds.end()) {
+            cIds.push_back(n[j]);
+            cTiles.push_back(v[n[j]]);
+          }
+          cTiles[k - cIds.begin()].in[j] = t.out[j];
         }
       }
-      changed.pop();
+      v[cIds.front()] = t;
+      cIds.pop_front();
+      cTiles.pop_front();
     }
   }
 
@@ -253,10 +260,10 @@ main(int argc, char* argv[]) {
   
   Board board(useFile ? boardFile : std::cin);
 
-  std::queue<uint> starters;
+  std::deque<uint> startIds;
   for (uint i = 0; i < board.size(); ++i) {
     if (isStarter(board[i].type)) {
-      starters.push(i);
+      startIds.push_back(i);
     }
   }
 
@@ -267,17 +274,21 @@ main(int argc, char* argv[]) {
       inputs[i] -= '0';
     }
 
-    std::queue<uint> changed = starters;
-    board.update(changed, inputs, outputs, true);
+    std::deque<uint> cIds = startIds;
+    std::deque<Tile> cTiles;
+    for (uint i = 0; i < startIds.size(); ++i) {
+      cTiles.push_back(board[startIds[i]]);
+    }
+    board.update(cIds, cTiles, inputs, outputs, true);
     
     bool drawnOne = false;
-    while (changed.size() > 0) {
+    while (!cIds.empty()) {
       if (animate && !quiet) {
         board.draw(drawnOne);
         drawnOne = true;
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
-      board.update(changed, inputs, outputs);
+      board.update(cIds, cTiles, inputs, outputs);
     }
     if (!quiet) {
       board.draw(drawnOne);
